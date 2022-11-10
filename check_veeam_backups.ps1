@@ -4,12 +4,21 @@ if ($excluded_jobs -ne "") {
     $excluded_jobs_array = $excluded_jobs.Split(",")
 }
 
-try {
-    # Fix for Get-VBRJob not found
-    $VeeamModulePath = "C:\Program Files\Veeam\Backup and Replication\Console"
-    $env:PSModulePath = $env:PSModulePath + "$([System.IO.Path]::PathSeparator)$VeeamModulePath"
-    Import-Module -DisableNameChecking Veeam.Backup.PowerShell
+$VeeamModulePath = "C:\Program Files\Veeam\Backup and Replication\Console"
+$env:PSModulePath = $env:PSModulePath + "$([System.IO.Path]::PathSeparator)$VeeamModulePath"
+$TestPath = $VeeamModulePath + "\Veeam.Backup.PowerShell\Veeam.Backup.PowerShell.psd1"
 
+try {
+    if (Test-Path -Path $TestPath -PathType Leaf) {
+        Import-Module -DisableNameChecking Veeam.Backup.PowerShell
+    }
+    else {
+        #Adding required SnapIn
+        if($null -eq (Get-PSSnapin -Name VeeamPSSnapIn -ErrorAction SilentlyContinue))
+        {
+	        Add-PsSnapin VeeamPSSnapIn
+        }
+    }
     #-------------------------------------------------------------------------------
 
     $output_jobs_failed = ""
@@ -31,20 +40,21 @@ try {
 
     #Loop through every backup job
     ForEach ($job in $jobs) {
-        if(-not($null -ne $excluded_jobs_array -and $excluded_jobs_array -contains $job.Name)) {
-            $LastSession = $Job.FindLastSession()
-            $Log = $LastSession.Logger.GetLog()
-
-            $HasErrors = $Log.IsAnyFailedRecords()
-            $HasWarnings = $Log.IsAnyWarningRecords()
+        if (-not($null -ne $excluded_jobs_array -and $excluded_jobs_array -contains $job.Name)) {            
             $IsEnabled = $Job.Info.IsScheduleEnabled
-        
-            $runtime = $LastSession.CreationTime.ToString("dd.MM.yyyy")
-            $state = $job.GetLastState()
 
-            #Skip jobs that are currently running
-            if ($state -ne "Working") {
-                if ($IsEnabled) {
+            if ($IsEnabled) {
+                $LastSession = $Job.FindLastSession()
+                $Log = $LastSession.Logger.GetLog()
+
+                $HasErrors = $Log.IsAnyFailedRecords()
+                $HasWarnings = $Log.IsAnyWarningRecords()
+            
+                $runtime = $LastSession.CreationTime.ToString("dd.MM.yyyy")
+                $state = $job.GetLastState()
+
+                #Skip jobs that are currently running
+                if ($state -ne "Working") {
                     if ($HasErrors) {
                         $output_jobs_failed += $job.Name + " (" + $runtime + "), "
                         $return_state = 2
@@ -62,17 +72,13 @@ try {
                         $output_jobs_success_counter ++
                     }
                 }
-                else {
-                    $output_jobs_disabled += $job.Name + " (" + $runtime + "), "
-                    if ($return_state -ne 2) {
-                        $return_state = 1
-                    }
-                    $output_jobs_disabled_counter++
-                }
-                #}
             }
             else {
-                $output_jobs_working_counter++
+                $output_jobs_disabled += $job.Name + " (" + $runtime + "), "
+                if ($return_state -ne 2) {
+                    $return_state = 1
+                }
+                $output_jobs_disabled_counter++
             }
         }
     }
