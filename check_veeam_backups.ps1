@@ -6,8 +6,8 @@ if ($excluded_jobs -ne "") {
 
 try {
     # Fix for Get-VBRJob not found
-    $VeeamModulePath = “C:\Program Files\Veeam\Backup and Replication\Console”
-    $env:PSModulePath = $env:PSModulePath + “$([System.IO.Path]::PathSeparator)$VeeamModulePath”
+    $VeeamModulePath = "C:\Program Files\Veeam\Backup and Replication\Console"
+    $env:PSModulePath = $env:PSModulePath + "$([System.IO.Path]::PathSeparator)$VeeamModulePath"
     Import-Module -DisableNameChecking Veeam.Backup.PowerShell
 
     #-------------------------------------------------------------------------------
