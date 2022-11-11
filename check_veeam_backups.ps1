@@ -45,7 +45,7 @@ try {
             $lastResult = $confjob.LastResult
 
             if ($lastResult -eq "Warning") {
-                $output_jobs_warning += $job.Name + ", "
+                $output_jobs_warning += $confjob.Name + ", "
                 if ($return_state -ne 2) {
                     $return_state = 1
                 }
@@ -56,13 +56,13 @@ try {
                 $output_jobs_success_counter ++
             }
             elseif ($lastResult -eq "Failed") {
-                $output_jobs_failed += $job.Name + ", "
+                $output_jobs_failed += $confjob.Name + ", "
                 $return_state = 2
                 $output_jobs_failed_counter++
             }
         }
         else {
-            $output_jobs_disabled += $job.Name + ", "
+            $output_jobs_disabled += $confjob.Name + ", "
             if ($return_state -ne 2) {
                 $return_state = 1
             }
