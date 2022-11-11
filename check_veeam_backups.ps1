@@ -35,6 +35,41 @@ try {
     $output_jobs_skipped_counter = 0
     $output_jobs_disabled_counter = 0
 
+    #Check Configuration Backup Job
+    $confBackups = Get-VBRConfigurationBackupJob
+
+    ForEach ($confjob in $confBackups) {
+        $IsEnabled = $confjob.Enabled
+
+        if ($IsEnabled) {
+            $lastResult = $confjob.LastResult
+
+            if ($lastResult -eq "Warning") {
+                $output_jobs_warning += $job.Name + ", "
+                if ($return_state -ne 2) {
+                    $return_state = 1
+                }
+
+                $output_jobs_warning_counter ++
+            }
+            elseif ($lastResult -eq "Success") {
+                $output_jobs_success_counter ++
+            }
+            elseif ($lastResult -eq "Failed") {
+                $output_jobs_failed += $job.Name + ", "
+                $return_state = 2
+                $output_jobs_failed_counter++
+            }
+        }
+        else {
+            $output_jobs_disabled += $job.Name + ", "
+            if ($return_state -ne 2) {
+                $return_state = 1
+            }
+            $output_jobs_disabled_counter++
+        }
+    }
+
     #Get all Veeam backup jobs 
     $jobs = Get-VBRJob -WarningAction SilentlyContinue
 
@@ -74,7 +109,7 @@ try {
                 }
             }
             else {
-                $output_jobs_disabled += $job.Name + " (" + $runtime + "), "
+                $output_jobs_disabled += $job.Name + ", "
                 if ($return_state -ne 2) {
                     $return_state = 1
                 }
