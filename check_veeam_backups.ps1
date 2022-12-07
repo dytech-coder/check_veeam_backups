@@ -4,13 +4,19 @@ if ($excluded_jobs -ne "") {
     $excluded_jobs_array = $excluded_jobs.Split(",")
 }
 
+#=== Add a temporary value from User to session ($Env:PSModulePath) ======
+#https://docs.microsoft.com/powershell/scripting/developer/module/modifying-the-psmodulepath-installation-path?view=powershell-7
+$path = [Environment]::GetEnvironmentVariable('PSModulePath', 'Machine')
+$env:PSModulePath +="$([System.IO.Path]::PathSeparator)$path"
+#=========================================================================
+
 $VeeamModulePath = "C:\Program Files\Veeam\Backup and Replication\Console"
-$env:PSModulePath = $env:PSModulePath + "$([System.IO.Path]::PathSeparator)$VeeamModulePath"
 $TestPath = $VeeamModulePath + "\Veeam.Backup.PowerShell\Veeam.Backup.PowerShell.psd1"
 
 try {
     if (Test-Path -Path $TestPath -PathType Leaf) {
-        Import-Module -DisableNameChecking Veeam.Backup.PowerShell
+        $veeamPSModule = Get-Module -ListAvailable | ?{$_.Name -match "Veeam.Backup.Powershell"}
+        Import-Module $veeamPSModule.Path -DisableNameChecking
     }
     else {
         #Adding required SnapIn
