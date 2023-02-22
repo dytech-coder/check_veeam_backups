@@ -35,8 +35,18 @@ try {
     $output_jobs_skipped_counter = 0
     $output_jobs_disabled_counter = 0
 
-    #Check Configuration Backup Job
-    $confBackups = Get-VBRConfigurationBackupJob
+    Try {
+        #Check Configuration Backup Job
+        $confBackups = Get-VBRConfigurationBackupJob
+    }
+    Catch {
+        #Catch any errors and asume that the Backup Configuration Job is disabled
+        $confBackups = $null
+        $IsEnabled = $false
+        $output_jobs_disabled += "Backup Configuration Job" + ", "
+        $return_state = 1
+        $output_jobs_disabled_counter++
+    }
 
     ForEach ($confjob in $confBackups) {
         $IsEnabled = $confjob.Enabled
