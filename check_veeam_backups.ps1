@@ -4,13 +4,21 @@ if ($excluded_jobs -ne "") {
     $excluded_jobs_array = $excluded_jobs.Split(",")
 }
 
+#=== Add a temporary value from User to session ($Env:PSModulePath) ======
+#https://docs.microsoft.com/powershell/scripting/developer/module/modifying-the-psmodulepath-installation-path?view=powershell-7
+$path = [Environment]::GetEnvironmentVariable('PSModulePath', 'Machine')
+$env:PSModulePath +="$([System.IO.Path]::PathSeparator)$path"
+#=========================================================================
+
 $VeeamModulePath = "C:\Program Files\Veeam\Backup and Replication\Console"
-$env:PSModulePath = $env:PSModulePath + "$([System.IO.Path]::PathSeparator)$VeeamModulePath"
+#$env:PSModulePath = $env:PSModulePath + "$([System.IO.Path]::PathSeparator)$VeeamModulePath"
 $TestPath = $VeeamModulePath + "\Veeam.Backup.PowerShell\Veeam.Backup.PowerShell.psd1"
 
 try {
     if (Test-Path -Path $TestPath -PathType Leaf) {
-        Import-Module -DisableNameChecking Veeam.Backup.PowerShell
+        $veeamPSModule = Get-Module -ListAvailable | ?{$_.Name -match "Veeam.Backup.Powershell"}
+        Import-Module $veeamPSModule.Path -DisableNameChecking
+        #Import-Module -DisableNameChecking Veeam.Backup.PowerShell
     }
     else {
         #Adding required SnapIn
@@ -35,18 +43,8 @@ try {
     $output_jobs_skipped_counter = 0
     $output_jobs_disabled_counter = 0
 
-    Try {
-        #Check Configuration Backup Job
-        $confBackups = Get-VBRConfigurationBackupJob
-    }
-    Catch {
-        #Catch any errors and asume that the Backup Configuration Job is disabled
-        $confBackups = $null
-        $IsEnabled = $false
-        $output_jobs_disabled += "Backup Configuration Job" + ", "
-        $return_state = 1
-        $output_jobs_disabled_counter++
-    }
+    #Check Configuration Backup Job
+    $confBackups = Get-VBRConfigurationBackupJob
 
     ForEach ($confjob in $confBackups) {
         $IsEnabled = $confjob.Enabled
@@ -98,8 +96,8 @@ try {
                 $runtime = $LastSession.CreationTime.ToString("dd.MM.yyyy")
                 $state = $job.GetLastState()
 
-                #Skip jobs that are currently running, but only if there are not errors or warnings
-                if (($state -ne "Working") -and (($HasErrors -eq $false) -or ($HasWarnings -eq $false))) {
+                #Skip jobs that are currently running
+                if ($state -ne "Working") {
                     if ($HasErrors) {
                         $output_jobs_failed += $job.Name + " (" + $runtime + "), "
                         $return_state = 2
@@ -117,21 +115,15 @@ try {
                         $output_jobs_success_counter ++
                     }
                 }
-                # If Job is Working but has errors or warnings 
-                elseif (($state -eq "Working") -and (($HasErrors -eq $true) -or ($HasWarnings -eq $true))) {
-                    if ($HasErrors) {
-                        $output_jobs_failed += $job.Name + " (" + $runtime + "), "
-                        $return_state = 2
-                        $output_jobs_failed_counter++
-                    }
-                    elseif ($HasWarnings) {
-                        $output_jobs_warning += $job.Name + " (" + $runtime + "), "
-                        if ($return_state -ne 2) {
-                            $return_state = 1
-                        }
-                
-                        $output_jobs_warning_counter ++
-                    }
+
+                # We don't trust IsAnyFailedRecords and IsAnyWarningRecords
+                $last_job_session = Get-VBRBackupSession | Where-Object {$_.Name -Match $job.Name -and $_.State -eq "Stopped"} | Sort-Object {$_.EndTime} -Descending | Select-Object -First 1
+                $last_job_session_result = $last_job_session.Result
+
+                if ($last_job_session_result -eq "Failed") {
+                    $output_jobs_failed += $job.Name + " (" + $runtime + "), "
+                    $return_state = 2
+                    $output_jobs_failed_counter++
                 }
             }
             else {
