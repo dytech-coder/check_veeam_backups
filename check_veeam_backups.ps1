@@ -142,16 +142,17 @@ try {
                         $output_jobs_warning_counter ++
                     }
                 }
+                
+                # This gets to many false negaitves
+                ## We don't trust IsAnyFailedRecords and IsAnyWarningRecords
+                #$last_job_session = Get-VBRBackupSession | Where-Object {$_.Name -Match $job.Name -and $_.State -eq "Stopped"} | Sort-Object {$_.EndTime} -Descending | Select-Object -First 1
+                #$last_job_session_result = $last_job_session.Result
 
-                # We don't trust IsAnyFailedRecords and IsAnyWarningRecords
-                $last_job_session = Get-VBRBackupSession | Where-Object {$_.Name -Match $job.Name -and $_.State -eq "Stopped"} | Sort-Object {$_.EndTime} -Descending | Select-Object -First 1
-                $last_job_session_result = $last_job_session.Result
-
-                if ($last_job_session_result -eq "Failed") {
-                    $output_jobs_failed += $job.Name + " (" + $runtime + "), "
-                    $return_state = 2
-                    $output_jobs_failed_counter++
-                }
+                #if ($last_job_session_result -eq "Failed") {
+                #    $output_jobs_failed += $job.Name + " (" + $runtime + "), "
+                #    $return_state = 2
+                #    $output_jobs_failed_counter++
+                #}
             }
             else {
                 $output_jobs_disabled += $job.Name + ', '
