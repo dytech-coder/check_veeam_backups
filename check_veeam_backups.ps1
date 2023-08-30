@@ -95,72 +95,71 @@ try {
     #Loop through every backup job
     ForEach ($job in $jobs) {
         if (-not($null -ne $excluded_jobs_array -and $excluded_jobs_array -contains $job.Name)) {            
-            $IsEnabled = $Job.Info.IsScheduleEnabled
+            $IsEnabled = $Job.IsScheduleEnabled
 
             if ($IsEnabled) {
                 $LastSession = $Job.FindLastSession()
-                $Log = $LastSession.Logger.GetLog()
-
-                $HasErrors = $Log.IsAnyFailedRecords()
-                $HasWarnings = $Log.IsAnyWarningRecords()
-            
                 $runtime = $LastSession.CreationTime.ToString('dd.MM.yyyy')
                 $state = $job.GetLastState()
 
-                #Skip jobs that are currently running, but only if there are not errors or warnings
-                if (($state -ne 'Working') -and (($HasErrors -eq $false) -or ($HasWarnings -eq $false))) {
-                    if ($HasErrors) {
-                        $output_jobs_failed += $job.Name + ' (' + $runtime + '), '
-                        $return_state = 2
-                        $output_jobs_failed_counter++
-                    }
-                    elseif ($HasWarnings) {
-                        $output_jobs_warning += $job.Name + ' (' + $runtime + '), '
-                        if ($return_state -ne 2) {
-                            $return_state = 1
-                        }
-                
-                        $output_jobs_warning_counter ++
-                    }
-                    else {
-                        $output_jobs_success_counter ++
-                    }
+                #Enumerate only Job with State Stopped or Idle
+                if (($lastState -ne -1) -and ($lastState -ne 9)) {
+                    continue
                 }
-                # If Job is Working but has errors or warnings 
-                elseif (($state -eq 'Working') -and (($HasErrors -eq $true) -or ($HasWarnings -eq $true))) {
-                    if ($HasErrors) {
-                        $output_jobs_failed += $job.Name + ' (' + $runtime + '), '
-                        $return_state = 2
-                        $output_jobs_failed_counter++
-                    }
-                    elseif ($HasWarnings) {
-                        $output_jobs_warning += $job.Name + ' (' + $runtime + '), '
-                        if ($return_state -ne 2) {
-                            $return_state = 1
-                        }
-                
-                        $output_jobs_warning_counter ++
-                    }
-                }
-                
-                # This gets to many false negaitves
-                ## We don't trust IsAnyFailedRecords and IsAnyWarningRecords
-                #$last_job_session = Get-VBRBackupSession | Where-Object {$_.Name -Match $job.Name -and $_.State -eq "Stopped"} | Sort-Object {$_.EndTime} -Descending | Select-Object -First 1
-                #$last_job_session_result = $last_job_session.Result
+                $taskSessions = Get-VBRTaskSession -Session $LastSession
+                [Veeam.Backup.Model.ESessionStatus]$lastStatus = 'Success'
+                foreach ($task in $taskSessions) {
+                    $currentTaskStatus = $task.Status
 
-                #if ($last_job_session_result -eq "Failed") {
-                #    $output_jobs_failed += $job.Name + " (" + $runtime + "), "
-                #    $return_state = 2
-                #    $output_jobs_failed_counter++
-                #}
-            }
-            else {
-                $output_jobs_disabled += $job.Name + ', '
-                if ($return_state -ne 2) {
-                    $return_state = 1
+                    if ($currentTaskStatus -eq 2) {
+                        $lastStatus = $currentTaskStatus
+                    } elseif ($currentTaskStatus -eq 3) {
+                        if ($lastStatus -ne 2) {
+                            $lastStatus = $currentTaskStatus
+                        }
+                    }
                 }
-                $output_jobs_disabled_counter++
+
+                if ($lastStatus -eq 2) {
+                    $output_jobs_failed += $job.Name + ' (' + $runtime + '), '
+                    $return_state = 2
+                    $output_jobs_failed_counter++
+                }
+                elseif ($lastStatus -eq 3) {
+                    $output_jobs_warning += $job.Name + ' (' + $runtime + '), '
+                    if ($return_state -ne 2) {
+                        $return_state = 1
+                    }
+                
+                    $output_jobs_warning_counter ++
+                }
+                else {
+                    $output_jobs_success_counter ++
+                }
             }
+            # If Job is Working but has errors or warnings 
+            elseif (($state -eq 'Working') -and (($HasErrors -eq $true) -or ($HasWarnings -eq $true))) {
+                if ($HasErrors) {
+                    $output_jobs_failed += $job.Name + ' (' + $runtime + '), '
+                    $return_state = 2
+                    $output_jobs_failed_counter++
+                }
+                elseif ($HasWarnings) {
+                    $output_jobs_warning += $job.Name + ' (' + $runtime + '), '
+                    if ($return_state -ne 2) {
+                        $return_state = 1
+                    }
+                
+                    $output_jobs_warning_counter ++
+                }
+            }
+        }
+        else {
+            $output_jobs_disabled += $job.Name + ', '
+            if ($return_state -ne 2) {
+                $return_state = 1
+            }
+            $output_jobs_disabled_counter++
         }
     }
 
