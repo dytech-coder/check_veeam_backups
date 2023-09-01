@@ -103,7 +103,7 @@ try {
                 $state = $job.GetLastState()
 
                 #Enumerate only Job with State Stopped or Idle
-                if (($lastState -ne -1) -and ($lastState -ne 9)) {
+                if (($state -ne -1) -and ($state -ne 9)) {
                     continue
                 }
                 $taskSessions = Get-VBRTaskSession -Session $LastSession
