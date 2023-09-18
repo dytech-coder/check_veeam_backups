@@ -152,7 +152,7 @@ try {
                 
                     $output_jobs_warning_counter ++
                 }
-            } elseif ($state -eq 'Disabled') {
+            } else {
                 $output_jobs_disabled += $job.Name + ', '
                 if ($return_state -ne 2) {
                     $return_state = 1
