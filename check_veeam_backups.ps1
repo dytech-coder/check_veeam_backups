@@ -102,20 +102,30 @@ try {
                 $runtime = $LastSession.CreationTime.ToString('dd.MM.yyyy')
                 $state = $job.GetLastState()
 
-                #Enumerate only Job with State Stopped or Idle
-                if (($state -ne -1) -and ($state -ne 9)) {
-                    continue
-                }
-                $taskSessions = Get-VBRTaskSession -Session $LastSession
-                [Veeam.Backup.Model.ESessionStatus]$lastStatus = 'Success'
-                foreach ($task in $taskSessions) {
-                    $currentTaskStatus = $task.Status
+                ##Enumerate only Job with State Stopped or Idle
+                #if (($state -ne -1) -and ($state -ne 9)) {
+                #    continue
+                #}
+                if ($LastSession.HasAnyTaskSession() -eq $false) {
+                    # No TaskSessions found
+                    $lastSessionDetails = $LastSession.GetDetails()
+                    $HasErrors = $lastSessionDetails -match '.*(Error)(.*)$|.*(Failed)(.*)$'
 
-                    if ($currentTaskStatus -eq 2) {
-                        $lastStatus = $currentTaskStatus
-                    } elseif ($currentTaskStatus -eq 3) {
-                        if ($lastStatus -ne 2) {
+                    if ($HasErrors) {
+                        $lastStatus = 2
+                    }
+                } else {
+                    $taskSessions = Get-VBRTaskSession -Session $LastSession
+                    [Veeam.Backup.Model.ESessionStatus]$lastStatus = 'Success'
+                    foreach ($task in $taskSessions) {
+                        $currentTaskStatus = $task.Status
+
+                        if ($currentTaskStatus -eq 2) {
                             $lastStatus = $currentTaskStatus
+                        } elseif ($currentTaskStatus -eq 3) {
+                            if ($lastStatus -ne 2) {
+                                $lastStatus = $currentTaskStatus
+                            }
                         }
                     }
                 }
