@@ -74,6 +74,9 @@ try {
             elseif ($lastResult -eq 'Success') {
                 $output_jobs_success_counter ++
             }
+            elseif ($lastResult -eq 'None') {
+                $output_jobs_none_counter ++
+            }
             elseif ($lastResult -eq 'Failed') {
                 $output_jobs_failed += $confjob.Name + ', '
                 $return_state = 2
@@ -94,6 +97,9 @@ try {
 
     #Loop through every backup job
     ForEach ($job in $jobs) {
+        # Reset last state to failed
+        $lastStatus = 2
+        
         if (-not($null -ne $excluded_jobs_array -and $excluded_jobs_array -contains $job.Name)) {            
             $IsEnabled = $Job.IsScheduleEnabled
 
@@ -109,6 +115,8 @@ try {
                         $lastStatus = 2
                     } elseif ($latestStatus -eq 'Warning') {
                         $lastStatus = 3
+                    } elseif ($latestStatus -eq 'None') {
+                        $lastStatus = 4
                     } else {
                         if ($LastSession.HasAnyTaskSession() -eq $false) {
                             # No TaskSessions found
@@ -120,7 +128,7 @@ try {
                             }
                         } else {
                             $taskSessions = Get-VBRTaskSession -Session $LastSession
-                            [Veeam.Backup.Model.ESessionStatus]$lastStatus = 'Success'
+                            $lastStatus = 0
                             foreach ($task in $taskSessions) {
                                 $currentTaskStatus = $task.Status
 
@@ -136,7 +144,7 @@ try {
                     }
                 } else {
                     $taskSessions = Get-VBRTaskSession -Session $LastSession
-                    [Veeam.Backup.Model.ESessionStatus]$lastStatus = 'Success'
+                    $lastStatus = 0
                     foreach ($task in $taskSessions) {
                         $currentTaskStatus = $task.Status
 
@@ -162,6 +170,9 @@ try {
                     }
                 
                     $output_jobs_warning_counter ++
+                }
+                elseif ($lastStatus -eq 4) {
+                    $output_jobs_none_counter ++
                 }
                 else {
                     $output_jobs_success_counter ++
