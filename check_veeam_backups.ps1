@@ -102,17 +102,37 @@ try {
                 $runtime = $LastSession.CreationTime.ToString('dd.MM.yyyy')
                 $state = $job.GetLastState()
 
-                ##Enumerate only Job with State Stopped or Idle
-                #if (($state -ne -1) -and ($state -ne 9)) {
-                #    continue
-                #}
-                if ($LastSession.HasAnyTaskSession() -eq $false) {
-                    # No TaskSessions found
-                    $lastSessionDetails = $LastSession.GetDetails()
-                    $HasErrors = $lastSessionDetails -match '.*(Error)(.*)$|.*(Failed)(.*)$'
+                if ($job.JobType -eq 'SimpleBackupCopyPolicy') {
+                    $latestStatus = $job.Info.LatestStatus
 
-                    if ($HasErrors) {
+                    if ($latestStatus -eq 'Failed') {
                         $lastStatus = 2
+                    } elseif ($latestStatus -eq 'Warning') {
+                        $lastStatus = 3
+                    } else {
+                        if ($LastSession.HasAnyTaskSession() -eq $false) {
+                            # No TaskSessions found
+                            $lastSessionDetails = $LastSession.GetDetails()
+                            $HasErrors = $lastSessionDetails -match '.*(Error)(.*)$|.*(Failed)(.*)$'
+        
+                            if ($HasErrors) {
+                                $lastStatus = 2
+                            }
+                        } else {
+                            $taskSessions = Get-VBRTaskSession -Session $LastSession
+                            [Veeam.Backup.Model.ESessionStatus]$lastStatus = 'Success'
+                            foreach ($task in $taskSessions) {
+                                $currentTaskStatus = $task.Status
+
+                                if ($currentTaskStatus -eq 2) {
+                                    $lastStatus = $currentTaskStatus
+                                } elseif ($currentTaskStatus -eq 3) {
+                                    if ($lastStatus -ne 2) {
+                                        $lastStatus = $currentTaskStatus
+                                    }
+                                }
+                            }
+                        }
                     }
                 } else {
                     $taskSessions = Get-VBRTaskSession -Session $LastSession
