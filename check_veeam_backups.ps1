@@ -111,7 +111,9 @@ try {
                 if ($job.JobType -eq 'SimpleBackupCopyPolicy') {
                     $latestStatus = $job.Info.LatestStatus
 
-                    if ($latestStatus -eq 'Failed') {
+                    if ($latestStatus -eq 'Success') {
+                        $lastStatus = 0
+                    } elseif ($latestStatus -eq 'Failed') {
                         $lastStatus = 2
                     } elseif ($latestStatus -eq 'Warning') {
                         $lastStatus = 3
