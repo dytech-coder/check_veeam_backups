@@ -1,9 +1,91 @@
 #Get argument for excluded jobs
 [CmdletBinding()]
 param([string]$excluded_jobs = '')
+
 if ($excluded_jobs -ne '') {
     $excluded_jobs_array = $excluded_jobs.Split(',')
 }
+
+# =====================================================================
+# Auto-restart in PowerShell 7 when Veeam B&R 13+ is installed
+# =====================================================================
+
+function Get-VeeamMajorVersion {
+    $consolePath = Join-Path $env:ProgramFiles 'Veeam\Backup and Replication\Console'
+    $exePath     = Join-Path $consolePath 'Veeam.Backup.Shell.exe'
+    $dllPath     = Join-Path $consolePath 'Veeam.Backup.Core.dll'
+
+    foreach ($path in @($exePath, $dllPath)) {
+        if (Test-Path -Path $path -PathType Leaf) {
+            try {
+                $version = [System.Diagnostics.FileVersionInfo]::GetVersionInfo($path).ProductVersion
+                if (-not [string]::IsNullOrWhiteSpace($version)) {
+                    return ([version]($version.Split(' ')[0])).Major
+                }
+            }
+            catch {
+            }
+        }
+    }
+
+    return $null
+}
+
+function Get-PwshPath {
+    $cmd = Get-Command pwsh.exe -ErrorAction SilentlyContinue
+    if ($cmd) {
+        return $cmd.Source
+    }
+
+    $defaultPaths = @(
+        "$env:ProgramFiles\PowerShell\7\pwsh.exe",
+        "$env:ProgramFiles\PowerShell\7-preview\pwsh.exe"
+    )
+
+    foreach ($path in $defaultPaths) {
+        if (Test-Path -Path $path -PathType Leaf) {
+            return $path
+        }
+    }
+
+    return $null
+}
+
+$veeamMajorVersion = Get-VeeamMajorVersion
+$currentPsMajor    = $PSVersionTable.PSVersion.Major
+
+if (($veeamMajorVersion -ge 13) -and ($currentPsMajor -lt 7)) {
+    $pwshPath   = Get-PwshPath
+    $scriptPath = $PSCommandPath
+
+    if (-not $scriptPath) {
+        $scriptPath = $MyInvocation.MyCommand.Path
+    }
+
+    if (-not $pwshPath) {
+        Write-Host "UNKNOWN: Veeam B&R $veeamMajorVersion erkannt, aber pwsh.exe wurde nicht gefunden."
+        exit 3
+    }
+
+    if (-not $scriptPath) {
+        Write-Host "UNKNOWN: Skriptpfad konnte nicht ermittelt werden, Neustart mit PowerShell 7 nicht moeglich."
+        exit 3
+    }
+
+    $argList = @(
+        '-NoProfile',
+        '-ExecutionPolicy', 'Bypass',
+        '-File', $scriptPath
+    )
+
+    if (-not [string]::IsNullOrEmpty($excluded_jobs)) {
+        $argList += @('-excluded_jobs', $excluded_jobs)
+    }
+
+    & $pwshPath @argList
+    exit $LASTEXITCODE
+}
+# =====================================================================
 
 #=== Add a temporary value from User to session ($Env:PSModulePath) ======
 #https://docs.microsoft.com/powershell/scripting/developer/module/modifying-the-psmodulepath-installation-path?view=powershell-7
